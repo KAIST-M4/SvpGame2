@@ -2,7 +2,6 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <!-- 모바일 최적화: 화면 확대 방지 및 꽉 찬 화면 유지 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>지워지지 않는 상처 - 테트리스</title>
     <style>
@@ -18,11 +17,10 @@
             text-align: center;
             overflow: hidden;
             position: relative;
-            /* 더블 탭 시 화면 확대 방지 */
-            touch-action: none; 
             -webkit-tap-highlight-color: transparent; 
         }
 
+        /* 배경에 영원히 남는 단어 공간 */
         #bg-words-container {
             position: absolute;
             top: 0;
@@ -32,6 +30,7 @@
             z-index: -1;
             pointer-events: none;
             overflow: hidden;
+            transition: z-index 1s ease; /* 엔딩 시 앞으로 나오게 하기 위함 */
         }
 
         .bg-word {
@@ -40,8 +39,10 @@
             font-weight: bold;
             opacity: 0;
             white-space: nowrap;
+            /* 기본 상태: 뒤에 있고 투명함 */
             animation: fadeInStay 2s forwards;
             text-shadow: 0px 0px 5px rgba(0,0,0,0.8);
+            transition: all 2s ease-in-out; /* 게임 오버 연출용 트랜지션 */
         }
 
         @keyframes fadeInStay {
@@ -49,17 +50,26 @@
             100% { opacity: 0.3; transform: scale(1); }
         }
 
+        /* 💥 게임 오버 시 글자들이 앞으로 튀어나오는 연출용 클래스 */
+        .bg-word.assault {
+            opacity: 1 !important;
+            transform: scale(1.5) rotate(0deg) !important;
+            color: #ff0000;
+            text-shadow: 0px 0px 20px #ff0000, 2px 2px 5px #000;
+            z-index: 100;
+        }
+
+        /* 화면 UI 공통 스타일 */
         .screen {
             position: absolute;
             background-color: rgba(30, 41, 59, 0.95);
-            padding: 30px;
+            padding: 40px;
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
             max-width: 500px;
             width: 90%;
             transition: opacity 0.5s ease;
             z-index: 10;
-            box-sizing: border-box;
         }
         .hidden {
             opacity: 0;
@@ -67,31 +77,29 @@
             visibility: hidden;
         }
         
-        h1 { color: #f43f5e; margin-top: 0; font-size: 1.8em; }
+        h1 { color: #f43f5e; margin-top: 0; }
         
-        /* 테트리스 영역 (모바일 화면에 맞게 조정) */
+        /* 테트리스 영역 */
         #tetris-container {
             display: flex;
             flex-direction: column;
             align-items: center;
-            /* 터치 이벤트를 받기 위해 꽉 채움 */
-            width: 100%; 
-            height: 100%;
+            transition: opacity 1.5s ease; /* 캔버스 페이드 아웃 효과 */
         }
         canvas {
             background-color: #000;
             border: 2px solid #334155;
             border-radius: 8px;
             box-shadow: 0 0 20px rgba(0,0,0,0.8);
-            margin-bottom: 10px;
-            max-height: 60vh; /* 모바일 화면 높이에 맞게 조절 */
+            margin-bottom: 15px;
+            transition: opacity 2s ease;
         }
         
-        /* 버튼 조작부 */
+        /* 모바일 터치 조작 버튼 */
         .controls {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
+            gap: 10px;
             width: 240px;
             margin-top: 10px;
         }
@@ -115,11 +123,14 @@
 
         .stats-box {
             background: rgba(30, 41, 59, 0.8);
-            padding: 8px 20px;
+            padding: 10px 20px;
             border-radius: 8px;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
             font-size: 1.2em;
             color: #94a3b8;
+            display: flex;
+            justify-content: space-between;
+            width: 200px;
         }
 
         .action-btn {
@@ -140,7 +151,7 @@
             width: 100%;
             height: 100px;
             padding: 10px;
-            margin-top: 15px;
+            margin-top: 20px;
             border-radius: 8px;
             border: 1px solid #334155;
             background-color: #0f172a;
@@ -149,44 +160,36 @@
             box-sizing: border-box;
             font-family: inherit;
         }
-
-        /* 스와이프 안내 문구 */
-        .swipe-hint {
-            font-size: 0.8em;
-            color: #cbd5e1;
-            margin-top: 10px;
-        }
     </style>
 </head>
 <body>
 
     <div id="bg-words-container"></div>
 
-    <!-- 시작 화면 -->
+    <!-- 1. 시작 화면 -->
     <div id="start-screen" class="screen">
         <h1>공간 정리하기</h1>
-        <p style="line-height: 1.6; font-size: 0.9em;">
-            복잡해진 마음속 공간을 정리해 볼까요?<br>
-            블록을 맞춰 줄을 없애면 점수가 올라갑니다.
+        <p style="line-height: 1.6;">
+            1분 동안 복잡해진 마음을 정리하세요.<br>
+            시간이 갈수록 압박감(회색 줄)이 차오릅니다.
         </p>
-        <div style="text-align: left; background: #1e293b; padding: 15px; border-radius: 8px; margin: 15px 0; font-size: 0.85em;">
-            <strong>[스마트폰 조작법]</strong><br>
-            👆 화면을 <strong>스와이프(밀기)</strong> 해보세요!<br>
-            • 좌/우 밀기: 이동<br>
-            • 위로 밀기 (또는 짧게 터치): 회전<br>
-            • 아래로 밀기: 빨리 내리기<br>
-            (아래 버튼을 눌러도 됩니다)
+        <div style="text-align: left; background: #1e293b; padding: 15px; border-radius: 8px; margin: 20px 0; font-size: 0.9em;">
+            <strong>[조작 방법]</strong><br>
+            💻 PC: 방향키(이동, 회전), 스페이스바(내리기)<br>
+            📱 모바일: 화면 아래의 버튼 터치
         </div>
         <button class="action-btn" onclick="startTetrisGame()">테트리스 시작하기</button>
     </div>
 
-    <!-- 게임 화면 -->
-    <div id="tetris-screen" class="screen hidden" style="background-color: transparent; box-shadow: none; padding: 0;">
+    <!-- 2. 테트리스 게임 화면 -->
+    <div id="tetris-screen" class="screen hidden" style="background-color: transparent; box-shadow: none; padding: 10px;">
         <div id="tetris-container">
-            <div class="stats-box">지운 줄: <strong id="lines-cleared" style="color: white;">0</strong></div>
+            <div class="stats-box">
+                <div>시간: <strong id="time-left" style="color: #f43f5e;">60</strong></div>
+                <div>줄: <strong id="lines-cleared" style="color: white;">0</strong></div>
+            </div>
             <canvas id="tetris" width="240" height="400"></canvas>
             
-            <!-- 화면 터치 조작 버튼 -->
             <div class="controls">
                 <button class="btn-left" onmousedown="playerMove(-1)" ontouchstart="playerMove(-1); event.preventDefault();">◀</button>
                 <button class="btn-soft-down" onmousedown="playerDrop()" ontouchstart="playerDrop(); event.preventDefault();">▼</button>
@@ -197,25 +200,25 @@
         </div>
     </div>
 
-    <!-- 종료 화면 -->
-    <div id="end-screen" class="screen hidden">
-        <h1>지워지지 않는 상처</h1>
-        <div style="margin-top: 15px; text-align: left; line-height: 1.6;">
-            <p style="font-size: 1em;">
-                블록을 맞추어 화면을 비워냈지만,<br>
-                <strong>당신이 치워버린 그 배경을 보세요.</strong>
+    <!-- 3. 최종 종료 및 성찰 화면 -->
+    <div id="end-screen" class="screen hidden" style="background-color: rgba(15, 23, 42, 0.85); border: 2px solid #ef4444;">
+        <h1 id="end-title">시간 종료</h1>
+        <div style="margin-top: 20px; text-align: left; line-height: 1.6;">
+            <p style="font-size: 1.05em;">
+                화면을 비우려 애썼지만,<br>
+                <strong>결국 당신을 덮치는 건 배경에 쌓여있던 상처들입니다.</strong>
             </p>
-            <p style="color: #94a3b8; font-size: 0.9em;">
-                우리는 무심코 말을 던지고 상황을 넘겨버렸다고 생각하지만, 
-                누군가의 마음속에는 그 상처가 영원히 지워지지 않고 남아있습니다.
+            <p style="color: #cbd5e1; font-size: 0.95em;">
+                우리는 무심코 나쁜 말을 던지고 게임처럼 넘겨버렸다고 생각하지만, 
+                누군가의 마음속에는 그 상처가 영원히, 가장 뚜렷하게 남아있습니다.
             </p>
-            <h3 style="color: #f43f5e; margin-top: 20px; font-size: 1.1em;">💬 배경에 가득 찬 단어들을 보며 어떤 기분이 드시나요?</h3>
+            <h3 style="color: #f43f5e; margin-top: 30px;">💬 쏟아지는 단어들을 보며 어떤 기분이 드시나요?</h3>
             <textarea id="reflection-input" placeholder="당신의 솔직한 감정을 적어주세요..."></textarea>
         </div>
         <button class="action-btn" onclick="submitReflection()">제출하고 마무리하기</button>
     </div>
 
-    <!-- 감사 화면 -->
+    <!-- 4. 감사 화면 -->
     <div id="thanks-screen" class="screen hidden">
         <h1>체험해 주셔서 감사합니다.</h1>
         <p style="line-height: 1.6;">
@@ -239,11 +242,11 @@
         }
 
         /* =========================================================
-           테트리스 로직
+           테트리스 핵심 로직
         ========================================================= */
         const canvas = document.getElementById('tetris');
         const context = canvas.getContext('2d');
-        context.scale(20, 20); 
+        context.scale(20, 20);
 
         const bgContainer = document.getElementById('bg-words-container');
         let linesClearedTotal = 0;
@@ -252,6 +255,11 @@
         let lastTime = 0;
         let tetrisFrameId;
         let isTetrisPlaying = false;
+        
+        // 시간 및 쓰레기 줄 추가 변수
+        let timeLeft = 60;
+        let gameTimerId;
+        let garbageTimerId;
 
         function createPiece(type) {
             if (type === 'T') return [[0, 0, 0], [1, 1, 1], [0, 1, 0]];
@@ -262,7 +270,8 @@
             if (type === 'S') return [[0, 6, 6], [6, 6, 0], [0, 0, 0]];
             if (type === 'Z') return [[7, 7, 0], [0, 7, 7], [0, 0, 0]];
         }
-        const colors = [null, '#a855f7', '#eab308', '#f97316', '#3b82f6', '#06b6d4', '#22c55e', '#ef4444'];
+        // 8번 색상은 회색(쓰레기 블록)
+        const colors = [null, '#a855f7', '#eab308', '#f97316', '#3b82f6', '#06b6d4', '#22c55e', '#ef4444', '#64748b'];
 
         function createMatrix(w, h) {
             const matrix = [];
@@ -292,26 +301,14 @@
             context.fillRect(0, 0, canvas.width, canvas.height);
             drawMatrix(arena, {x: 0, y: 0});
             
-            // --- 잔상(Ghost) 계산 및 그리기 시작 ---
-            // 1. 현재 플레이어의 위치와 모양을 복사한 가상의 블록(ghost) 생성
-            const ghost = {
-                matrix: player.matrix,
-                pos: { x: player.pos.x, y: player.pos.y }
-            };
-            
-            // 2. 충돌하기 전까지 가상 블록을 계속 아래로 내림
-            while (!collide(arena, ghost)) {
-                ghost.pos.y++;
-            }
-            ghost.pos.y--; // 충돌 직전의 위치로 한 칸 되돌림
-
-            // 3. 투명도를 조절하여 잔상 그리기
-            context.globalAlpha = 0.25; // 투명도 25% 설정
+            // 잔상(Ghost) 그리기
+            const ghost = { matrix: player.matrix, pos: { x: player.pos.x, y: player.pos.y } };
+            while (!collide(arena, ghost)) { ghost.pos.y++; }
+            ghost.pos.y--;
+            context.globalAlpha = 0.25;
             drawMatrix(ghost.matrix, ghost.pos);
-            context.globalAlpha = 1.0;  // 투명도 원래대로(100%) 복구
-            // --- 잔상(Ghost) 그리기 끝 ---
+            context.globalAlpha = 1.0;
 
-            // 실제 플레이어 블록 그리기
             drawMatrix(player.matrix, player.pos);
         }
 
@@ -391,6 +388,33 @@
             else matrix.reverse();
         }
 
+        // 밑에서 쓰레기 줄 추가 기능
+        function addGarbageLine() {
+            if(!isTetrisPlaying) return;
+            
+            // 모든 줄을 한 칸씩 위로 올림
+            for(let y = 0; y < arena.length - 1; y++) {
+                arena[y] = [...arena[y+1]];
+            }
+            
+            // 맨 아래에 빈 구멍이 1개 있는 회색 줄(8번 색상) 추가
+            const emptyHole = Math.floor(Math.random() * arena[0].length);
+            const newLine = new Array(arena[0].length).fill(8); // 8은 회색
+            newLine[emptyHole] = 0; // 한 칸만 비움
+            
+            arena[arena.length - 1] = newLine;
+            
+            // 만약 플레이어가 겹치면 플레이어도 한 칸 위로
+            if (collide(arena, player)) {
+                player.pos.y--;
+                if(collide(arena, player)) {
+                    // 밀려서 맨 위에 닿으면 게임 오버
+                    triggerGameOver("압박을 견디지 못함");
+                }
+            }
+            drawTetris();
+        }
+
         function playerReset() {
             const pieces = 'ILJOTSZ';
             player.matrix = createPiece(pieces[pieces.length * Math.random() | 0]);
@@ -398,11 +422,40 @@
             player.pos.x = (arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
             
             if (collide(arena, player)) {
-                isTetrisPlaying = false;
-                cancelAnimationFrame(tetrisFrameId);
-                canvas.style.opacity = "0.5";
-                setTimeout(() => showScreen('end-screen'), 1000);
+                triggerGameOver("상처가 가득 참");
             }
+        }
+
+        // 게임 오버 처리 및 연출 (핵심)
+        function triggerGameOver(reasonStr) {
+            if(!isTetrisPlaying) return;
+            
+            isTetrisPlaying = false;
+            cancelAnimationFrame(tetrisFrameId);
+            clearInterval(gameTimerId);
+            clearInterval(garbageTimerId);
+            
+            document.getElementById('end-title').innerText = reasonStr;
+            
+            // 1. 테트리스 캔버스와 버튼들을 서서히 투명하게 숨김
+            document.getElementById('tetris-container').style.opacity = "0";
+            
+            // 2. 배경 영역을 화면 맨 앞으로 가져옴
+            bgContainer.style.zIndex = "5"; 
+            
+            // 3. 배경에 깔린 단어들을 강제로 붉고 크게 튀어나오게 만듦
+            const words = document.querySelectorAll('.bg-word');
+            words.forEach(word => {
+                word.classList.add('assault');
+                // 각자 약간 다른 시간차를 두고 튀어나옴
+                word.style.transitionDelay = (Math.random() * 0.5) + 's'; 
+            });
+
+            // 4. 2초 뒤에 종료 화면 표시 (반투명하게 배경 글씨가 보이도록 설계됨)
+            setTimeout(() => {
+                showScreen('end-screen');
+                document.getElementById('end-screen').style.zIndex = "20";
+            }, 2000);
         }
 
         function arenaSweep() {
@@ -420,7 +473,7 @@
             if (linesThisTurn > 0) {
                 linesClearedTotal += linesThisTurn;
                 document.getElementById('lines-cleared').innerText = linesClearedTotal;
-                if(dropInterval > 200) dropInterval -= 20; 
+                if(dropInterval > 150) dropInterval -= 30;
 
                 for(let i=0; i<linesThisTurn; i++) {
                     spawnPermanentBackgroundWord();
@@ -435,8 +488,8 @@
             
             wordEl.style.left = Math.random() * 80 + '%';
             wordEl.style.top = Math.random() * 80 + '%';
-            wordEl.style.fontSize = (Math.random() * 2 + 1.5) + 'em'; // 모바일 고려 글자 크기 약간 축소
-            wordEl.style.transform = `rotate(${Math.random() * 40 - 20}deg)`;
+            wordEl.style.fontSize = (Math.random() * 2 + 1.5) + 'em'; // 크기 약간 조정
+            wordEl.style.transform = `rotate(${Math.random() * 60 - 30}deg)`;
             
             bgContainer.appendChild(wordEl);
         }
@@ -456,66 +509,36 @@
             showScreen('tetris-screen');
             arena.forEach(row => row.fill(0));
             linesClearedTotal = 0;
-            dropInterval = 1000;
+            dropInterval = 800; // 시작 속도 약간 빠르게
+            timeLeft = 60;
+            
             document.getElementById('lines-cleared').innerText = '0';
-            canvas.style.opacity = "1";
+            document.getElementById('time-left').innerText = timeLeft;
+            document.getElementById('tetris-container').style.opacity = "1";
             bgContainer.innerHTML = ''; 
+            bgContainer.style.zIndex = "-1"; // 배경을 다시 뒤로
             
             playerReset();
             isTetrisPlaying = true;
+            
+            // 1초 타이머
+            gameTimerId = setInterval(() => {
+                timeLeft--;
+                document.getElementById('time-left').innerText = timeLeft;
+                if(timeLeft <= 0) {
+                    triggerGameOver("시간 종료");
+                }
+            }, 1000);
+
+            // 10초마다 쓰레기 줄 올라옴 (난이도)
+            garbageTimerId = setInterval(() => {
+                addGarbageLine();
+            }, 10000);
+
             updateTetris();
         }
 
-        /* =========================================================
-           터치 & 스와이프 조작 (모바일)
-        ========================================================= */
-        let touchStartX = 0;
-        let touchStartY = 0;
-        const swipeThreshold = 30; // 스와이프로 인식할 최소 거리
-
-        document.getElementById('tetris-container').addEventListener('touchstart', function(e) {
-            if(!isTetrisPlaying) return;
-            // 버튼 터치는 무시 (버튼 이벤트가 별도로 처리됨)
-            if(e.target.tagName === 'BUTTON') return; 
-            
-            touchStartX = e.changedTouches[0].screenX;
-            touchStartY = e.changedTouches[0].screenY;
-            e.preventDefault(); // 화면 스크롤 방지
-        }, {passive: false});
-
-        document.getElementById('tetris-container').addEventListener('touchend', function(e) {
-            if(!isTetrisPlaying || e.target.tagName === 'BUTTON') return;
-            
-            let touchEndX = e.changedTouches[0].screenX;
-            let touchEndY = e.changedTouches[0].screenY;
-            
-            let deltaX = touchEndX - touchStartX;
-            let deltaY = touchEndY - touchStartY;
-
-            // X축 이동이 더 클 경우 (좌우 스와이프)
-            if (Math.abs(deltaX) > Math.abs(deltaY)) {
-                if (Math.abs(deltaX) > swipeThreshold) {
-                    if (deltaX > 0) playerMove(1); // 오른쪽
-                    else playerMove(-1);           // 왼쪽
-                } else {
-                    // 제자리 짧은 터치는 회전으로 간주
-                     playerRotate();
-                }
-            } 
-            // Y축 이동이 더 클 경우 (상하 스와이프)
-            else {
-                if (Math.abs(deltaY) > swipeThreshold) {
-                    if (deltaY > 0) playerDrop(); // 아래로 살짝 밀면 한 칸 내리기
-                    else playerRotate();          // 위로 밀면 회전
-                } else {
-                     // 제자리 짧은 터치는 회전
-                     playerRotate();
-                }
-            }
-        }, {passive: false});
-
-
-        // PC 키보드 조작
+        // PC 키보드
         document.addEventListener('keydown', event => {
             if (!isTetrisPlaying) return;
             if(["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.code)) {
